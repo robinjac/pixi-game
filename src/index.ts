@@ -20,7 +20,6 @@ const otherTextures: Tuple<string>[] = [
   ["blank", "assets/blank.png"],
   ["button", "assets/button2.png"],
   ["mystery", "assets/mystery.png"],
-  ["win", "assets/win.png"],
 ];
 
 const symTextures: Tuple<string>[] = repeat(4)((num) => [
