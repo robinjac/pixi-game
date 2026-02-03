@@ -1,5 +1,13 @@
 import "./style.css";
-import { Assets, Sprite, Text, SpriteSource, Texture, Graphics } from "pixi.js";
+import {
+  Assets,
+  Sprite,
+  Text,
+  SpriteSource,
+  Texture,
+  Graphics,
+  Container,
+} from "pixi.js";
 import { createButton, Button } from "./button";
 import {
   game,
@@ -15,6 +23,8 @@ import {
 
 Text.defaultResolution = 3;
 Text.defaultAutoResolution = false;
+
+const confettiLayer = new Container();
 
 const otherTextures: Tuple<string>[] = [
   ["blank", "assets/blank.png"],
@@ -57,9 +67,6 @@ window.onload = async (): Promise<void> => {
   const number = Sprite.from(textures.blank);
   useScale(number)(0.8);
   setPosition(number, 0.5, 0.1);
-
-  // Create win scene
-  // const win = Sprite.from(textures.win);
 
   // Create lose scene
   const youLostText = new Text("Aww you guessed wrong! =(", {
@@ -131,35 +138,91 @@ window.onload = async (): Promise<void> => {
     }
   };
 
+  type ConfettiParticle = {
+    gfx: Graphics;
+    vx: number;
+    vy: number;
+    spin: number;
+  };
+
+  function shootConfetti({
+    x = gameWidth / 2,
+    y = gameHeight,
+    count = 100,
+  }: { x?: number; y?: number; count?: number } = {}) {
+    const colors = [
+      0xffffff, 0xff2a5c, 0xe4ff2a, 0xa62aff, 0x3df2da, 0xff2a9c, 0x5a2bb8,
+    ];
+
+    const gravity = 0.3;
+
+    const particles: ConfettiParticle[] = [];
+
+    for (let i = 0; i < count; i++) {
+      const gfx = new Graphics();
+      gfx.beginFill(colors[i % colors.length]);
+      gfx.drawRect(-4, -6, 8, 12);
+      gfx.endFill();
+
+      gfx.position.set(x, y);
+      gfx.rotation = Math.random() * Math.PI;
+
+      particles.push({
+        gfx,
+        vx: (Math.random() - 0.5) * 12, // was 6
+        vy: -(10 + Math.random() * 10), // was ~6
+        spin: (Math.random() - 0.5) * 0.3,
+      });
+
+      confettiLayer.addChild(gfx);
+    }
+
+    const update = () => {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+
+        p.gfx.x += p.vx;
+        p.gfx.y += p.vy;
+        p.vy += gravity;
+        p.gfx.rotation += p.spin;
+        p.gfx.alpha -= 0.015;
+
+        if (p.gfx.alpha <= 0 || p.gfx.y > gameHeight + 100) {
+          confettiLayer.removeChild(p.gfx);
+          particles.splice(i, 1);
+        }
+      }
+
+      if (particles.length === 0) {
+        game.app.ticker.remove(update);
+      }
+    };
+
+    game.app.ticker.add(update);
+  }
+
   const selectionButtons: Button[] = repeat(4)((num) => {
     const [key] = symTextures[num - 1];
     const sprite = Sprite.from(textures[key]);
 
-    const button = createButton(
-      sprite,
-      0.21 + num / 8.7,
-      0.6,
-      102,
-      102,
-      () => {
-        game.select(num as Selected);
+    const button = createButton(sprite, 0.21 + num / 8.7, 0.6, 102, 102, () => {
+      game.select(num as Selected);
 
-        chooseButton.disabled = !game.maxSelectionReached;
+      chooseButton.disabled = !game.maxSelectionReached;
 
-        for (const [index, button] of selectionButtons.entries()) {
-          button.active =
-            chooseButton.disabled || game.hasSelected((index + 1) as Selected);
-        }
+      for (const [index, button] of selectionButtons.entries()) {
+        button.active =
+          chooseButton.disabled || game.hasSelected((index + 1) as Selected);
+      }
 
-        if (!chooseButton.disabled) {
-          game.app.ticker.add(animateButton);
-        } else {
-          game.app.ticker.remove(animateButton);
-          // Reset position
-          chooseButton.source.y = baseY;
-        }
-      },
-    );
+      if (!chooseButton.disabled) {
+        game.app.ticker.add(animateButton);
+      } else {
+        game.app.ticker.remove(animateButton);
+        // Reset position
+        chooseButton.source.y = baseY;
+      }
+    });
 
     return button;
   });
@@ -186,6 +249,7 @@ window.onload = async (): Promise<void> => {
       mystery.visible = false;
 
       if (won) {
+        shootConfetti();
         setTimeout(() => {
           youWonText.visible = true;
 
@@ -196,22 +260,6 @@ window.onload = async (): Promise<void> => {
             playAgainButton.visible = true;
             game.app.ticker.add(animateFadeSlide);
           }, 600);
-
-          /*   win.visible = true;
-          win.alpha = 0; */
-
-          /*   const animateWin = (delta: number) => {
-            win.alpha += 0.1;
-            if (win.alpha <= 1) {
-              win.alpha += 0.1;
-            } else {
-              win.alpha = 1;
-              game.app.ticker.remove(animateWin);
-              playAgainButton.visible = true;
-            }
-          }; */
-
-          // game.app.ticker.add(animateWin);
         }, 1200);
       } else {
         youLostText.visible = true;
@@ -251,6 +299,7 @@ window.onload = async (): Promise<void> => {
   }
 
   game.stage.addChild(background);
+  game.stage.addChild(confettiLayer);
   game.stage.addChild(chooseButton.source);
 
   for (const button of selectionButtons) {
@@ -262,7 +311,6 @@ window.onload = async (): Promise<void> => {
 
   game.stage.addChild(youLostText);
   game.stage.addChild(youWonText);
-  // game.stage.addChild(win);
   game.stage.addChild(playAgainButton.source);
 
   resizeCanvas();
